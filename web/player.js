@@ -1,5 +1,3 @@
-// PocketAudio — Listen only (stream PC speakers to phone/browser).
-
 import { kSampleRateHz, kChunkBytes } from './format.js';
 
 const $ = (id) => document.getElementById(id);

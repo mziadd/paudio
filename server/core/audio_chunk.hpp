@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "pocket_audio/core/format.hpp"
+#include "core/format.hpp"
 
 namespace pocket_audio {
 

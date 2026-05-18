@@ -1,6 +1,6 @@
 // WebSocket server — speaker audio downlink to browsers.
 
-#include "pocket_audio/network/socket_transport.hpp"
+#include "network/socket_transport.hpp"
 
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXWebSocketServer.h>
@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-#include "pocket_audio/core/format.hpp"
+#include "core/format.hpp"
 
 namespace pocket_audio::network {
 

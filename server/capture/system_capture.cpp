@@ -1,9 +1,9 @@
-#include "pocket_audio/capture/system_capture.hpp"
+#include "capture/system_capture.hpp"
 
 #if defined(__APPLE__)
-#include "pocket_audio/capture/mac_system_capture.hpp"
+#include "capture/mac_system_capture.hpp"
 #elif defined(_WIN32)
-#include "pocket_audio/capture/win_system_capture.hpp"
+#include "capture/win_system_capture.hpp"
 #endif
 
 namespace pocket_audio::capture {

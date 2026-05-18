@@ -3,7 +3,7 @@
 // the samples through directly. If your speakers run at a different rate, change
 // them in Sound > Properties > Advanced to 24-bit 48000 Hz.
 
-#include "pocket_audio/capture/win_system_capture.hpp"
+#include "capture/win_system_capture.hpp"
 
 #if !defined(_WIN32)
 #error "This file is Windows only"
@@ -16,7 +16,7 @@
 #include <vector>
 #include <windows.h>
 
-#include "pocket_audio/core/format.hpp"
+#include "core/format.hpp"
 
 namespace pocket_audio::capture {
 

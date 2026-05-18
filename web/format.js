@@ -1,4 +1,4 @@
-// Mirrors include/pocket_audio/core/format.hpp.
+// Mirrors server/core/format.hpp.
 export const kSampleRateHz           = 48000;
 export const kChannelCount           = 2;
 export const kBytesPerSample         = 4;        // float32

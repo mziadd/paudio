@@ -1,6 +1,3 @@
-// AudioWorklet: plays interleaved float32 stereo chunks at 48 kHz.
-// Simple queue — no pre-roll gate (that was causing long silence on iOS).
-
 const MAX_MS = 300;
 const MAX_FRAMES = Math.floor(sampleRate * MAX_MS / 1000);
 

@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 
-#include "pocket_audio/core/audio_chunk.hpp"
+#include "core/audio_chunk.hpp"
 
 namespace pocket_audio::capture {
 

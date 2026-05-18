@@ -2,8 +2,8 @@
 
 #include <string>
 
-#include "pocket_audio/core/audio_chunk.hpp"
-#include "pocket_audio/config/network_config.hpp"
+#include "core/audio_chunk.hpp"
+#include "core/config.hpp"
 
 namespace pocket_audio::network {
 

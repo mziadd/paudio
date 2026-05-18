@@ -4,7 +4,6 @@ project(PocketAudio LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ixwebsocket (WebSocket server for web listener)
 include(FetchContent)
 set(USE_TLS OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -15,18 +14,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(ixwebsocket)
 
-set(POCKET_AUDIO_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(POCKET_AUDIO_NETWORK server/network/socket_transport.cpp)
 
-set(POCKET_AUDIO_NETWORK
-    src/network/socket_transport.cpp
-)
-
-# --- pocket-audio-server: Mac (15+) or Windows 11 ---
 if(APPLE)
     enable_language(OBJCXX)
     set(POCKET_AUDIO_CAPTURE
-        src/capture/mac_system_capture.mm
-        src/capture/system_capture.cpp
+        server/capture/mac_system_capture.mm
+        server/capture/system_capture.cpp
     )
     set(POCKET_AUDIO_FRAMEWORKS
         "-framework ScreenCaptureKit"
@@ -36,19 +30,22 @@ if(APPLE)
         "-framework Foundation"
     )
 elseif(WIN32)
-    set(POCKET_AUDIO_CAPTURE src/capture/win_system_capture.cpp src/capture/system_capture.cpp)
+    set(POCKET_AUDIO_CAPTURE
+        server/capture/win_system_capture.cpp
+        server/capture/system_capture.cpp
+    )
     set(POCKET_AUDIO_LIBS ole32 uuid winmm propsys)
 else()
     message(FATAL_ERROR "PocketAudio requires macOS or Windows")
 endif()
 
 add_executable(pocket-audio-server
-    apps/server/main.cpp
+    server/main.cpp
     ${POCKET_AUDIO_CAPTURE}
     ${POCKET_AUDIO_NETWORK}
 )
 
-target_include_directories(pocket-audio-server PRIVATE ${POCKET_AUDIO_INCLUDE_DIR})
+target_include_directories(pocket-audio-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/server)
 target_link_libraries(pocket-audio-server PRIVATE ixwebsocket)
 
 if(APPLE)

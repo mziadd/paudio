@@ -9,7 +9,7 @@
 //   * No O(N) erases. We track a head index and only compact when the head
 //     drifts large.
 
-#include "pocket_audio/capture/mac_system_capture.hpp"
+#include "capture/mac_system_capture.hpp"
 
 #import <CoreMedia/CoreMedia.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
@@ -20,7 +20,7 @@
 #include <mutex>
 #include <vector>
 
-#include "pocket_audio/core/format.hpp"
+#include "core/format.hpp"
 
 using pocket_audio::AudioChunk;
 using pocket_audio::capture::ChunkCallback;

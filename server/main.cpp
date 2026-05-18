@@ -12,8 +12,8 @@
 #include <ixwebsocket/IXNetSystem.h>
 #endif
 
-#include "pocket_audio/capture/system_capture.hpp"
-#include "pocket_audio/network/socket_transport.hpp"
+#include "capture/system_capture.hpp"
+#include "network/socket_transport.hpp"
 
 namespace {
 

@@ -1,6 +1,6 @@
 # PocketAudio
 
-Hear your Mac or PC speakers on your phone over Wi‑Fi. Tap Listen in the browser.
+Hear your Mac or PC speakers on your phone over Wi‑Fi or Publicly via ngork. Tap Listen in the browser.
 
 **Repo:** https://github.com/mziadd/paudio
 

@@ -7,6 +7,9 @@
   "background_color": "#0e0f12",
   "theme_color": "#0e0f12",
   "orientation": "any",
-  "categories": ["music", "entertainment"],
+  "categories": [
+    "music",
+    "entertainment"
+  ],
   "prefer_related_applications": false
 }

@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0e0f12" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="manifest" href="manifest.json" />
-  <title>PocketAudio</title>
-  <style>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0e0f12" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="manifest.json" />
+    <title>PocketAudio</title>
+    <style>
     :root {
       --bg: #0e0f12;
       --panel: #16181d;
@@ -105,32 +106,33 @@
       accent-color: var(--accent);
     }
   </style>
-</head>
-<body>
-  <main class="card">
-    <h1>PocketAudio</h1>
-    <p class="subtitle">Stream your computer speakers to this device.</p>
+  </head>
+  <body>
+    <main class="card">
+      <h1>PocketAudio</h1>
+      <p class="subtitle">Stream your computer speakers to this device.</p>
 
-    <button type="button" id="play">Listen</button>
+      <button type="button" id="play">Listen</button>
 
-    <div class="status">
-      <span id="status-dot" class="dot" data-kind="idle"></span>
-      <span id="status">Ready</span>
-    </div>
+      <div class="status">
+        <span id="status-dot" class="dot" data-kind="idle"></span>
+        <span id="status">Ready</span>
+      </div>
 
-    <div class="meter" aria-hidden="true">
-      <div id="meter-bar"></div>
-    </div>
+      <div class="meter" aria-hidden="true">
+        <div id="meter-bar"></div>
+      </div>
 
-    <div class="volume-row">
-      <label for="volume">Volume</label>
-      <input id="volume" type="range" min="0" max="2" step="0.05" value="1.0" />
-    </div>
-  </main>
+      <div class="volume-row">
+        <label for="volume">Volume</label>
+        <input id="volume" type="range" min="0" max="2" step="0.05"
+          value="1.0" />
+      </div>
+    </main>
 
-  <audio id="media-out" playsinline webkit-playsinline autoplay
-         style="position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;"></audio>
+    <audio id="media-out" playsinline webkit-playsinline autoplay
+      style="position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;"></audio>
 
-  <script type="module" src="player.js?v=34"></script>
-</body>
+    <script type="module" src="player.js?v=35"></script>
+  </body>
 </html>

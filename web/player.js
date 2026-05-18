@@ -1,17 +1,15 @@
 import { kSampleRateHz, kChunkBytes } from './format.js';
 
 const $ = (id) => document.getElementById(id);
-const playBtn    = $('play');
-const statusEl   = $('status');
-const dot        = $('status-dot');
-const meterBar   = $('meter-bar');
+const playBtn = $('play');
+const statusEl = $('status');
+const dot = $('status-dot');
+const meterBar = $('meter-bar');
 const volumeSldr = $('volume');
 const mediaOutEl = $('media-out');
 
-const WS_TIMEOUT_MS    = 8000;
-const AUDIO_TIMEOUT_MS = 12000;
-const BG_INTERVAL_MS   = 2000;
-const PENDING_MAX      = 24;
+const WS_TIMEOUT = 8000;
+const AUDIO_TIMEOUT = 12000;
 const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
@@ -24,40 +22,22 @@ let mediaDest = null;
 let keepAliveEl = null;
 let bgTimer = null;
 
-let isListening = false;   // fully connected + audio playing
-let isStarting  = false;   // mid-startup (so Stop can cancel)
-let audioReady  = false;
-let workletModuleReady = false;
+let isListening = false;
+let isStarting = false;
+let audioReady = false;
+let workletLoaded = false;
 let pending = [];
 
-function isIOS() {
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  );
-}
+const isMobile = () =>
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-function isAndroid() {
-  return /Android/i.test(navigator.userAgent);
-}
-
-// iOS + Android: Web Audio suspends in background — route via <audio> element.
-function isMobile() {
-  return isIOS() || isAndroid();
-}
-
-function pageHost() {
+const host = () => {
   const h = location.hostname;
-  return (!h || h === '::1') ? '127.0.0.1' : h;
-}
+  return !h || h === '::1' ? '127.0.0.1' : h;
+};
 
-function wsUrl() {
-  const host = pageHost();
-  if (location.protocol === 'https:') {
-    return `wss://${host}:${location.port || '443'}/ws`;
-  }
-  return `ws://${host}:9000`;
-}
+const wsUrl = () => `ws://${host()}:9000`;
 
 function setStatus(kind, text) {
   if (statusEl) statusEl.textContent = text;
@@ -66,102 +46,53 @@ function setStatus(kind, text) {
 
 function refreshUI() {
   if (playBtn) {
-    playBtn.textContent = (isListening || isStarting) ? 'Stop' : 'Listen';
+    playBtn.textContent = isListening || isStarting ? 'Stop' : 'Listen';
     playBtn.classList.toggle('active', isListening);
     playBtn.disabled = false;
   }
-  if (isListening) setStatus('live', 'Listening');
-  else if (!isStarting) setStatus('idle', 'Ready');
+  setStatus(isListening ? 'live' : isStarting ? 'busy' : 'idle',
+    isListening ? 'Listening' : isStarting ? 'Connecting...' : 'Ready');
 }
 
-function acceptingAudio() {
-  return isListening || isStarting;
+function tryPlay(el) {
+  if (!el) return;
+  const p = el.play();
+  if (p?.catch) p.catch(() => {});
 }
 
 function withTimeout(promise, ms, label) {
   return Promise.race([
     promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`${label} timeout`)), ms);
-    }),
+    new Promise((_, r) => setTimeout(() => r(new Error(`${label} timeout`)), ms)),
   ]);
-}
-
-// Never await play() — on iOS it can hang forever outside a gesture.
-function tryPlay(el) {
-  if (!el) return;
-  const p = el.play();
-  if (p && typeof p.catch === 'function') p.catch(() => {});
-}
-
-// Safari 18+ / some mobile browsers: declare playback (not ambient) session.
-function setupAudioSession() {
-  if ('audioSession' in navigator) {
-    try { navigator.audioSession.type = 'playback'; } catch (_) { /* ignore */ }
-  }
-}
-
-// Lock-screen controls + background eligibility on mobile.
-function setupMediaSession() {
-  if (!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: 'PocketAudio',
-    artist: 'Computer audio',
-  });
-  navigator.mediaSession.playbackState = 'playing';
-  const noop = () => { resumePlayback(); };
-  try { navigator.mediaSession.setActionHandler('play', noop); } catch (_) { /* ignore */ }
-  try { navigator.mediaSession.setActionHandler('pause', noop); } catch (_) { /* ignore */ }
-}
-
-// Nudge audio + socket when tab goes to background or returns.
-function resumePlayback() {
-  if (!isListening) return;
-
-  setupAudioSession();
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.playbackState = 'playing';
-  }
-
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
-  }
-  tryPlay(mediaOutEl);
-  tryPlay(keepAliveEl);
-
-  // Mobile browsers often kill WebSocket in background — reconnect when we wake up.
-  if (isMobile() && (!socket || socket.readyState !== WebSocket.OPEN)) {
-    openSocket().catch((err) => console.warn('background reconnect:', err));
-  }
 }
 
 function resampleStereo(input, fromRate, toRate) {
   if (fromRate === toRate || input.length < 2) return input;
-  const inFrames = input.length / 2;
-  const outFrames = Math.max(1, Math.round(inFrames * toRate / fromRate));
-  const out = new Float32Array(outFrames * 2);
-  for (let i = 0; i < outFrames; i++) {
-    const src = i * (fromRate / toRate);
-    const i0 = Math.floor(src);
-    const frac = src - i0;
-    const i1 = Math.min(i0 + 1, inFrames - 1);
+  const inF = input.length / 2;
+  const outF = Math.max(1, Math.round(inF * toRate / fromRate));
+  const out = new Float32Array(outF * 2);
+  for (let i = 0; i < outF; i++) {
+    const sp = i * (fromRate / toRate);
+    const i0 = Math.floor(sp);
+    const f = sp - i0;
+    const i1 = Math.min(i0 + 1, inF - 1);
     for (let ch = 0; ch < 2; ch++) {
-      out[i * 2 + ch] =
-        input[i0 * 2 + ch] + (input[i1 * 2 + ch] - input[i0 * 2 + ch]) * frac;
+      out[i * 2 + ch] = input[i0 * 2 + ch] + (input[i1 * 2 + ch] - input[i0 * 2 + ch]) * f;
     }
   }
   return out;
 }
 
 function pushSamples(samples) {
-  if (!acceptingAudio()) return;
+  if (!isListening && !isStarting) return;
   if (!audioReady) {
     pending.push(samples);
-    while (pending.length > PENDING_MAX) pending.shift();
+    if (pending.length > 24) pending.shift();
     return;
   }
   let s = samples;
-  if (audioCtx && audioCtx.sampleRate !== kSampleRateHz) {
+  if (audioCtx?.sampleRate !== kSampleRateHz) {
     s = resampleStereo(samples, kSampleRateHz, audioCtx.sampleRate);
   }
   if (workletNode) {
@@ -172,21 +103,19 @@ function pushSamples(samples) {
 }
 
 function updateMeter(samples) {
-  if (!meterBar || !acceptingAudio()) return;
+  if (!meterBar || !isListening) return;
   let sum = 0;
   for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
-  const rms = Math.sqrt(sum / samples.length);
-  meterBar.style.width = Math.min(100, rms * 400) + '%';
+  meterBar.style.width = Math.min(100, Math.sqrt(sum / samples.length) * 400) + '%';
 }
 
-async function ensureWorkletModule() {
-  if (workletModuleReady) return;
-  const url = new URL('processor.js', import.meta.url).href;
-  await audioCtx.audioWorklet.addModule(url);
-  workletModuleReady = true;
+async function loadWorklet() {
+  if (workletLoaded) return;
+  await audioCtx.audioWorklet.addModule(new URL('processor.js', import.meta.url).href);
+  workletLoaded = true;
 }
 
-function buildScriptProcessorFallback() {
+function buildScriptFallback() {
   scriptNode = audioCtx.createScriptProcessor(2048, 0, 2);
   const q = [];
   let pos = 0;
@@ -210,133 +139,106 @@ async function buildAudioGraph() {
   if (audioReady) return;
 
   gainNode = audioCtx.createGain();
-  gainNode.gain.value = volumeSldr ? Number(volumeSldr.value) : 1.0;
+  gainNode.gain.value = volumeSldr ? Number(volumeSldr.value) : 1;
 
   try {
-    await ensureWorkletModule();
-    workletNode = new AudioWorkletNode(audioCtx, 'pcm-player', {
-      outputChannelCount: [2],
-    });
+    await loadWorklet();
+    workletNode = new AudioWorkletNode(audioCtx, 'pcm-player', { outputChannelCount: [2] });
     workletNode.connect(gainNode);
-  } catch (err) {
-    console.warn('AudioWorklet failed, using ScriptProcessor:', err);
-    buildScriptProcessorFallback();
+  } catch {
+    buildScriptFallback();
   }
 
-  // Mobile (iOS + Android): playback must go through <audio> for background/lock screen.
-  // Desktop: also use speakers via Web Audio destination.
   if (mediaOutEl) {
     mediaDest = audioCtx.createMediaStreamDestination();
     gainNode.connect(mediaDest);
     mediaOutEl.srcObject = mediaDest.stream;
-    mediaOutEl.muted = false;
-    mediaOutEl.volume = 1;
-    mediaOutEl.setAttribute('playsinline', '');
     tryPlay(mediaOutEl);
   }
-  if (!isMobile()) {
-    gainNode.connect(audioCtx.destination);
-  }
+  if (!isMobile()) gainNode.connect(audioCtx.destination);
 
   keepAliveEl = new Audio(SILENT_WAV);
   keepAliveEl.loop = true;
   keepAliveEl.volume = 0.001;
-  keepAliveEl.setAttribute('playsinline', '');
   tryPlay(keepAliveEl);
 
-  setupAudioSession();
-  setupMediaSession();
-
-  if (audioCtx.state === 'suspended') {
-    await audioCtx.resume();
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: 'PocketAudio', artist: 'PC audio' });
+    navigator.mediaSession.playbackState = 'playing';
   }
 
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
   audioReady = true;
-  const queued = pending;
+  const q = pending;
   pending = [];
-  for (const s of queued) pushSamples(s);
+  for (const s of q) pushSamples(s);
 }
 
-function resetAudioGraph() {
+function resetAudio() {
   audioReady = false;
-  try { workletNode?.disconnect(); } catch (_) { /* ignore */ }
-  try {
-    if (scriptNode) {
-      scriptNode.disconnect();
-      scriptNode.onaudioprocess = null;
-    }
-  } catch (_) { /* ignore */ }
-  try { gainNode?.disconnect(); } catch (_) { /* ignore */ }
+  try { workletNode?.disconnect(); } catch {}
+  try { scriptNode?.disconnect(); } catch {}
+  try { gainNode?.disconnect(); } catch {}
   workletNode = scriptNode = gainNode = mediaDest = null;
-
-  if (mediaOutEl) {
-    mediaOutEl.pause();
-    mediaOutEl.srcObject = null;
-  }
-  if (keepAliveEl) {
-    keepAliveEl.pause();
-    keepAliveEl = null;
-  }
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.playbackState = 'none';
-  }
+  if (mediaOutEl) { mediaOutEl.pause(); mediaOutEl.srcObject = null; }
+  if (keepAliveEl) { keepAliveEl.pause(); keepAliveEl = null; }
   pending = [];
   if (meterBar) meterBar.style.width = '0%';
 }
 
-function destroySocket() {
+function closeSocket() {
   if (!socket) return;
   const s = socket;
   socket = null;
   s.onopen = s.onclose = s.onerror = s.onmessage = null;
-  try { s.close(); } catch (_) { /* ignore */ }
+  try { s.close(); } catch {}
 }
 
 function openSocket() {
   return new Promise((resolve, reject) => {
-    destroySocket();
-
-    let settled = false;
+    closeSocket();
+    let done = false;
     const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      destroySocket();
+      if (done) return;
+      done = true;
+      closeSocket();
       reject(new Error('ws timeout'));
-    }, WS_TIMEOUT_MS);
+    }, WS_TIMEOUT);
 
     const finish = (err) => {
-      if (settled) return;
-      settled = true;
+      if (done) return;
+      done = true;
       clearTimeout(timer);
-      if (err) reject(err);
-      else resolve();
+      err ? reject(err) : resolve();
     };
 
-    const url = wsUrl();
-    console.log('WebSocket connecting to', url);
-    socket = new WebSocket(url);
+    socket = new WebSocket(wsUrl());
     socket.binaryType = 'arraybuffer';
-
     socket.onopen = () => {
-      console.log('WebSocket open');
-      installDataHandler();
+      socket.onmessage = (e) => {
+        if (!isListening && !isStarting) return;
+        const buf = e.data;
+        if (!(buf instanceof ArrayBuffer)) return;
+        const n = kChunkBytes / 4;
+        const end = buf.byteLength - (buf.byteLength % kChunkBytes);
+        for (let off = 0; off < end; off += kChunkBytes) {
+          const samples = new Float32Array(n);
+          samples.set(new Float32Array(buf, off, n));
+          updateMeter(samples);
+          pushSamples(samples);
+        }
+      };
       finish(null);
     };
-
     socket.onerror = () => finish(new Error('ws error'));
-
-    socket.onclose = (ev) => {
-      const wasOpen = settled;
-      destroySocket();
-      if (!wasOpen) {
-        finish(new Error('ws closed'));
-        return;
-      }
+    socket.onclose = () => {
+      const wasOpen = done;
+      closeSocket();
+      if (!wasOpen) return finish(new Error('ws closed'));
       if (isListening) {
-        isListening = false;
-        isStarting = false;
+        isListening = isStarting = false;
         stopBgTimer();
-        resetAudioGraph();
+        resetAudio();
         refreshUI();
         setStatus('error', 'Disconnected');
       }
@@ -344,82 +246,48 @@ function openSocket() {
   });
 }
 
-function installDataHandler() {
-  if (!socket) return;
-  socket.onmessage = (e) => {
-    if (!acceptingAudio()) return;
-    const buf = e.data;
-    if (!(buf instanceof ArrayBuffer) || buf.byteLength === 0) return;
-
-    const usable = buf.byteLength - (buf.byteLength % kChunkBytes);
-    const floatsPerChunk = kChunkBytes / 4;
-
-    for (let off = 0; off < usable; off += kChunkBytes) {
-      const samples = new Float32Array(floatsPerChunk);
-      samples.set(new Float32Array(buf, off, floatsPerChunk));
-      updateMeter(samples);
-      pushSamples(samples);
-    }
-  };
-}
-
-function closeSocket() {
-  destroySocket();
+function resumePlayback() {
+  if (!isListening) return;
+  if (audioCtx?.state === 'suspended') audioCtx.resume().catch(() => {});
+  tryPlay(mediaOutEl);
+  tryPlay(keepAliveEl);
+  if (isMobile() && (!socket || socket.readyState !== WebSocket.OPEN)) {
+    openSocket().catch(() => {});
+  }
 }
 
 function startBgTimer() {
   stopBgTimer();
-  // setInterval is throttled in background; still helps on Android/desktop.
-  bgTimer = setInterval(() => resumePlayback(), BG_INTERVAL_MS);
+  bgTimer = setInterval(resumePlayback, 2000);
 }
 
 function stopBgTimer() {
-  if (bgTimer) {
-    clearInterval(bgTimer);
-    bgTimer = null;
-  }
-}
-
-function cancelStartup() {
-  isStarting = false;
-  isListening = false;
-  stopBgTimer();
-  closeSocket();
-  resetAudioGraph();
-  refreshUI();
+  if (bgTimer) { clearInterval(bgTimer); bgTimer = null; }
 }
 
 async function startListening() {
   if (isListening || isStarting) return;
   if (location.protocol === 'file:') {
-    setStatus('error', 'Open via https:// — not as a local file');
+    setStatus('error', 'Serve web/ over http — e.g. python3 -m http.server 8080');
     return;
   }
 
   isStarting = true;
   pending = [];
-  if (playBtn) playBtn.disabled = true;
-  setStatus('busy', 'Connecting...');
   refreshUI();
 
   try {
     if (!audioCtx) {
-      // Some Android devices reject forced 48 kHz — use native rate + resample on mobile.
-      const ctxOpts = { latencyHint: 'playback' };
-      if (!isMobile()) ctxOpts.sampleRate = kSampleRateHz;
-      audioCtx = new AudioContext(ctxOpts);
+      const opts = { latencyHint: 'playback' };
+      if (!isMobile()) opts.sampleRate = kSampleRateHz;
+      audioCtx = new AudioContext(opts);
     }
-    if (audioCtx.state === 'suspended') {
-      await audioCtx.resume();
-    }
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-    await withTimeout(openSocket(), WS_TIMEOUT_MS + 500, 'ws');
-
+    await withTimeout(openSocket(), WS_TIMEOUT, 'ws');
     if (!isStarting) return;
 
-    setStatus('busy', 'Starting audio...');
-    await withTimeout(buildAudioGraph(), AUDIO_TIMEOUT_MS, 'audio');
-
+    await withTimeout(buildAudioGraph(), AUDIO_TIMEOUT, 'audio');
     if (!isStarting) return;
 
     isListening = true;
@@ -427,31 +295,23 @@ async function startListening() {
     startBgTimer();
     refreshUI();
   } catch (err) {
-    console.error('startListening failed:', err);
-    isStarting = false;
-    isListening = false;
+    isListening = isStarting = false;
     closeSocket();
-    resetAudioGraph();
-
-    const msg = String(err?.message || err);
-    if (msg.includes('ws')) {
-      setStatus('error', "Can't connect — is pocket-audio-server running on port 9000?");
-    } else if (msg.includes('audio')) {
-      setStatus('error', 'Audio setup timed out — tap Listen again');
-    } else {
-      setStatus('error', 'Failed — tap Listen to retry');
-    }
+    resetAudio();
+    const m = String(err?.message || err);
+    setStatus('error', m.includes('ws')
+      ? "Can't connect — is pocket-audio-server running?"
+      : 'Audio failed — tap Listen again');
     refreshUI();
   }
 }
 
 function stopListening() {
   if (!isListening && !isStarting) return;
-  isStarting = false;
-  isListening = false;
+  isListening = isStarting = false;
   stopBgTimer();
   closeSocket();
-  resetAudioGraph();
+  resetAudio();
   refreshUI();
 }
 
@@ -463,39 +323,12 @@ if (volumeSldr) {
 
 if (playBtn) {
   playBtn.addEventListener('click', () => {
-    if (isListening || isStarting) stopListening();
-    else startListening();
+    isListening || isStarting ? stopListening() : startListening();
   });
 }
 
-// Tab hidden/visible — iOS + Android background audio.
-document.addEventListener('visibilitychange', () => {
-  if (isListening) resumePlayback();
-});
-
-// pagehide: runs before mobile OS suspends the page.
-window.addEventListener('pagehide', () => {
-  if (isListening) resumePlayback();
-});
-
-window.addEventListener('pageshow', () => {
-  if (isListening) resumePlayback();
-});
-
-window.addEventListener('focus', () => {
-  if (isListening) resumePlayback();
-});
-
-window.addEventListener('blur', () => {
-  if (isListening) resumePlayback();
-});
-
-// Chrome on Android: page frozen in background (Page Lifecycle API).
-document.addEventListener('freeze', () => {
-  if (isListening) resumePlayback();
-});
-document.addEventListener('resume', () => {
-  if (isListening) resumePlayback();
-});
+const onWake = () => { if (isListening) resumePlayback(); };
+document.addEventListener('visibilitychange', onWake);
+window.addEventListener('pageshow', onWake);
 
 refreshUI();

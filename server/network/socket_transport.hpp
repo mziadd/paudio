@@ -11,15 +11,12 @@ using SocketHandle = int;
 constexpr SocketHandle kInvalidSocket = -1;
 
 struct ServerConfig {
-    int port = config::kWebSocketPort;
-    std::string bind_host = config::kDefaultBindHost;
+  int port = config::kWebSocketPort;
+  std::string bind_host = config::kDefaultBindHost;
 };
 
-SocketHandle createSocket(const ServerConfig& config = {});
-
-// Push one PCM chunk to all connected browsers.
-bool sendAudioData(SocketHandle socket, const AudioChunk& chunk);
-
+SocketHandle createSocket(const ServerConfig &config = {});
+bool sendAudioData(SocketHandle socket, const AudioChunk &chunk);
 void closeSocket(SocketHandle socket);
 
-}  // namespace pocket_audio::network
+} // namespace pocket_audio::network

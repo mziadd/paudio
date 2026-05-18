@@ -4,6 +4,7 @@
 
 namespace pocket_audio {
 
+// Uncompressed wire format — best clarity on LAN.
 constexpr int kSampleRateHz = 48000;
 constexpr int kChannelCount = 2;
 constexpr int kChunkSamplesPerChannel = 1024;

@@ -34,6 +34,8 @@ npx --yes serve -l tcp://0.0.0.0:8080
 
 Audio WebSocket: `ws://YOUR_MAC_IP:9000` (no HTTPS, no certs).
 
+Stream format: **48 kHz stereo float32** PCM (~48 chunks/s on LAN).
+
 ## Build
 
 ```bash

@@ -102,6 +102,19 @@ function pushSamples(samples) {
   }
 }
 
+function handlePcmMessage(buf) {
+  if (!(buf instanceof ArrayBuffer)) return;
+  const n = kChunkBytes / 4;
+  const end = buf.byteLength - (buf.byteLength % kChunkBytes);
+  for (let off = 0; off < end; off += kChunkBytes) {
+    // Copy — WS buffer is reused by the browser.
+    const samples = new Float32Array(n);
+    samples.set(new Float32Array(buf, off, n));
+    updateMeter(samples);
+    pushSamples(samples);
+  }
+}
+
 function updateMeter(samples) {
   if (!meterBar || !isListening) return;
   let sum = 0;
@@ -217,16 +230,7 @@ function openSocket() {
     socket.onopen = () => {
       socket.onmessage = (e) => {
         if (!isListening && !isStarting) return;
-        const buf = e.data;
-        if (!(buf instanceof ArrayBuffer)) return;
-        const n = kChunkBytes / 4;
-        const end = buf.byteLength - (buf.byteLength % kChunkBytes);
-        for (let off = 0; off < end; off += kChunkBytes) {
-          const samples = new Float32Array(n);
-          samples.set(new Float32Array(buf, off, n));
-          updateMeter(samples);
-          pushSamples(samples);
-        }
+        handlePcmMessage(e.data);
       };
       finish(null);
     };
@@ -284,10 +288,10 @@ async function startListening() {
     }
     if (audioCtx.state === 'suspended') await audioCtx.resume();
 
-    await withTimeout(openSocket(), WS_TIMEOUT, 'ws');
+    await withTimeout(buildAudioGraph(), AUDIO_TIMEOUT, 'audio');
     if (!isStarting) return;
 
-    await withTimeout(buildAudioGraph(), AUDIO_TIMEOUT, 'audio');
+    await withTimeout(openSocket(), WS_TIMEOUT, 'ws');
     if (!isStarting) return;
 
     isListening = true;

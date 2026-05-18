@@ -7,10 +7,12 @@
 #include <audioclient.h>
 #include <iostream>
 #include <mmdeviceapi.h>
+#include <cstring>
 #include <thread>
 #include <vector>
 #include <windows.h>
 
+#include "core/chunk_emit.hpp"
 #include "core/format.hpp"
 
 namespace pocket_audio::capture {
@@ -80,7 +82,6 @@ void WinSystemCapture::captureThread() {
     goto cleanup;
   }
 
-  // LOOPBACK = capture what is playing on the default speakers (not the mic).
   hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
                           10000000, 0, mixFormat, nullptr);
   if (FAILED(hr)) {
@@ -111,10 +112,11 @@ void WinSystemCapture::captureThread() {
     if (srcRate != kSampleRateHz) {
       std::cerr << "  warning: speaker mix is " << srcRate << " Hz, expected "
                 << kSampleRateHz
-                << " Hz — set speakers to 48000 Hz in Sound Properties.\n";
+                << " Hz — set speakers to 48000 Hz in Sound settings.\n";
     }
 
     std::vector<float> pending;
+    std::size_t head = 0;
     pending.reserve(static_cast<std::size_t>(kChunkSamplesPerChannel) *
                     kChannelCount * 4);
 
@@ -134,7 +136,6 @@ void WinSystemCapture::captureThread() {
         const bool silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0;
         if (data && frames > 0 && !silent && srcIsFloat) {
           const auto *src = reinterpret_cast<const float *>(data);
-          // WASAPI mix may be >2 ch — we only take first two (stereo wire format).
           for (UINT32 i = 0; i < frames; ++i) {
             pending.push_back(src[i * srcChannels]);
             pending.push_back(srcChannels > 1 ? src[i * srcChannels + 1]
@@ -145,12 +146,24 @@ void WinSystemCapture::captureThread() {
         capture->ReleaseBuffer(frames);
 
         const int chunkLen = kChunkSamplesPerChannel * kChannelCount;
-        while (static_cast<int>(pending.size()) >= chunkLen) {
+        while (static_cast<int>(pending.size()) - static_cast<int>(head) >=
+               chunkLen) {
           AudioChunk chunk;
-          std::copy(pending.begin(), pending.begin() + chunkLen, chunk.data());
-          pending.erase(pending.begin(), pending.begin() + chunkLen);  // O(n); ok for Win path
+          std::memcpy(chunk.data(), pending.data() + head,
+                      static_cast<std::size_t>(chunkLen) * sizeof(float));
+          head += static_cast<std::size_t>(chunkLen);
           if (on_chunk_)
             on_chunk_(chunk);
+        }
+
+        if (head >= 8192) {
+          const std::size_t left = pending.size() - head;
+          if (left > 0) {
+            std::memmove(pending.data(), pending.data() + head,
+                         left * sizeof(float));
+          }
+          pending.resize(left);
+          head = 0;
         }
 
         if (FAILED(capture->GetNextPacketSize(&packet)))

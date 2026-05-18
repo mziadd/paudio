@@ -43,7 +43,6 @@ int main() {
     return 1;
   }
 
-  // Capture callback runs on the capture thread — keep work cheap (send + counter).
   if (!capture->start([socket](const AudioChunk &chunk) {
         if (sendAudioData(socket, chunk))
           ++g_chunksSent;

@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include "core/format.hpp"
 
 namespace pocket_audio {
 
-// One WS binary frame: 1024 frames × 2 ch × float32 = 8192 bytes.
+// One WS frame: 1024 frames × 2 ch × float32 = 8192 bytes.
 class AudioChunk {
 public:
   AudioChunk()

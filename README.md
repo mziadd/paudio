@@ -6,8 +6,6 @@ Hear your Mac or PC speakers on your phone over Wi‑Fi or publicly via ngork. T
 
 Pre-built releases (server + web UI, no compiler needed):
 
-**[github.com/mziadd/paudio/releases](https://github.com/mziadd/paudio/releases)**
-
 | Download | Platform |
 |----------|----------|
 | `PocketAudio-macos-arm64.zip` | macOS 15+ (Apple Silicon) |

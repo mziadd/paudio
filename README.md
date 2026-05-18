@@ -32,6 +32,22 @@ git push origin v1.0.0
 
 Or run **Actions → Release → Run workflow** on GitHub.
 
+## Public deploy (web online + server at home)
+
+**Live web app:** https://mziadd.github.io/paudio/
+
+**Full guide:** [DEPLOY.md](DEPLOY.md)
+
+Quick version:
+
+1. Run `pocket-audio-server` on your PC (always).
+2. Expose it with [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/) → `wss://audio.yourdomain.com`.
+3. GitHub repo → **Settings** → **Secrets** → `POCKET_AUDIO_WS_URL` = `wss://audio.yourdomain.com`.
+4. Push to `main` (or re-run **Deploy Web** action).
+5. Open the Pages URL on your phone (cellular) → **Listen**.
+
+Test without redeploy: `https://mziadd.github.io/paudio/?ws=wss://audio.yourdomain.com`
+
 ## You need
 
 - macOS 15+ or Windows 11

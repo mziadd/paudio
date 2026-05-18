@@ -1,72 +1,65 @@
 # PocketAudio
 
-Hear your Mac or PC speakers on your phone over Wi‑Fi. Tap Listen in the browser — that's it. No mic, no upload from the phone.
+Hear your Mac or PC speakers on your phone over Wi‑Fi. Tap Listen in the browser.
 
 **Repo:** https://github.com/mziadd/paudio
 
 ## You need
 
 - macOS 15+ or Windows 11
-- Phone on the same Wi‑Fi
-- On Mac: **Screen Recording** allowed for Terminal (or whatever runs the server)
+- Phone on the same Wi‑Fi as the PC
+- Mac: **Screen Recording** allowed for Terminal (System Settings → Privacy & Security)
 
-## Run it (Mac)
+## Run it
 
-Two terminals.
-
-**Build once:**
+**Terminal 1 — audio server** (from `build/` after cmake):
 
 ```bash
-brew install cmake
-mkdir -p build && cd build
-cmake ..
-cmake --build .
-```
-
-**Terminal 1 — server:**
-
-```bash
-cd build
 ./pocket-audio-server
 ```
 
-Leave it running. You'll see `WebSocket on port 9000`. When someone's listening you'll see ~47 chunks/s. Zero chunks/s just means nobody's connected.
+Wait for `WebSocket on port 9000`.
 
-**Terminal 2 — web + HTTPS (from repo root, not `build/`):**
+**Terminal 2 — web UI** (pick one):
+
+### Python 3
 
 ```bash
-./scripts/local-dev.sh
+cd web
+python3 -m http.server 8080 --bind 0.0.0.0
 ```
 
-It prints a URL like `https://192.168.x.x:8443/`. Open that on your phone.
+### Node.js
 
-On the phone: accept the cert warning, play something on the Mac, tap **Listen**.
+```bash
+cd web
+npx --yes serve -l tcp://0.0.0.0:8080
+```
 
-Same machine only? Use `https://localhost:8443/`.
+(`npx http-server -p 8080 -a 0.0.0.0` works too.)
+
+**On your phone:** open `http://YOUR_MAC_IP:8080/`  
+(find IP: System Settings → Network, or `ipconfig getifaddr en0` on Mac)
+
+On the same Mac: `http://localhost:8080/`
+
+Play audio on the PC, tap **Listen**.
+
+The page is plain **http**. Audio goes over **ws://YOUR_MAC_IP:9000** (no certificate).
 
 ## Windows
 
-```bat
-mkdir build && cd build
-cmake ..
-cmake --build . --config Release
-Release\pocket-audio-server.exe
-```
-
-Other terminal, repo root: `python scripts\local-dev.py` — then open the https URL on your phone.
+Build and run `Release\pocket-audio-server.exe`, then serve `web/` the same way (Python or Node) from the repo.
 
 ## When something breaks
 
-- **Can't connect** — server first, then `local-dev.sh`. Same Wi‑Fi.
-- **No sound** — audio playing on the PC? Volume up on both sides. Tap Listen again.
-- **Page acting weird** — close the tab and reopen (cache).
-- **Mac won't capture** — Screen Recording permission, restart the server.
-- **Background on phone** — works best if you add the page to your home screen.
+- **Can't connect** — `pocket-audio-server` running? Same Wi‑Fi? Mac firewall allowing port 9000?
+- **No sound** — audio playing on the PC? Volume up. Tap Listen again.
+- **Page cache** — hard refresh or close the tab.
 
-## What's in the repo
+## Repo layout
 
-- `apps/server/` — main program
-- `src/capture/` — grabs system audio (Mac / Windows)
-- `src/network/` — WebSocket server on port 9000
-- `web/` — browser UI (`player.js`, `processor.js`)
-- `scripts/local-dev.sh` — HTTPS on 8443, proxies `/ws` to the server
+- `apps/server/` — server
+- `src/capture/` — system audio
+- `src/network/` — WebSocket :9000
+- `web/` — browser UI

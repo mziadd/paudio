@@ -437,7 +437,7 @@ async function startListening() {
 
     const msg = String(err?.message || err);
     if (msg.includes('ws')) {
-      setStatus('error', "Can't connect — run server + ./scripts/local-dev.sh");
+      setStatus('error', "Can't connect — is pocket-audio-server running on port 9000?");
     } else if (msg.includes('audio')) {
       setStatus('error', 'Audio setup timed out — tap Listen again');
     } else {

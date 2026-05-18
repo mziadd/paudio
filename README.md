@@ -2,8 +2,6 @@
 
 Hear your Mac or PC speakers on your phone over Wi‑Fi or publicly via ngork. Tap Listen in the browser.
 
-**Repo:** https://github.com/mziadd/paudio
-
 ## Download (ready-to-use)
 
 Pre-built releases (server + web UI, no compiler needed):
@@ -18,19 +16,6 @@ Pre-built releases (server + web UI, no compiler needed):
 1. Download and unzip the zip for your OS.
 2. Open the folder — inside you’ll find `pocket-audio-server` (or `.exe`), a `web/` folder, and `START.txt`.
 3. Follow **Run it** below (use the unzipped folder instead of building from source).
-
-**Intel Mac:** no pre-built zip yet — use [Build (macOS)](#build-macos) below.
-
-### Publish a new release (maintainers)
-
-Push a version tag; GitHub Actions builds both platforms and uploads the zips:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-Or run **Actions → Release → Run workflow** on GitHub.
 
 ## You need
 

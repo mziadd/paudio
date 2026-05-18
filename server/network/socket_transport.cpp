@@ -60,7 +60,7 @@ SocketHandle createSocket(const ServerConfig &config) {
         if (!ws)
           return;
         addClient(ws);
-        ws->disablePerMessageDeflate();
+        ws->disablePerMessageDeflate();  // raw PCM must not be compressed
         ws->setOnMessageCallback([ws](const ix::WebSocketMessagePtr &msg) {
           if (msg->type == ix::WebSocketMessageType::Close) {
             removeClient(ws);
@@ -84,6 +84,7 @@ bool sendAudioData(SocketHandle socket, const AudioChunk &chunk) {
   if (socket == kInvalidSocket || !g_server || !chunk.hasValidSize())
     return false;
 
+  // Snapshot clients under lock; send outside lock (capture thread must not block long).
   thread_local std::vector<ClientPtr> snapshot;
   thread_local std::string payload;
   {
@@ -93,6 +94,7 @@ bool sendAudioData(SocketHandle socket, const AudioChunk &chunk) {
     snapshot = g_server->clients;
   }
 
+  // Reuse buffer — one binary blob per chunk, same bytes to every browser.
   if (payload.capacity() < kChunkBytes)
     payload.reserve(kChunkBytes);
   payload.assign(reinterpret_cast<const char *>(chunk.data()),

@@ -24,8 +24,8 @@ constexpr std::size_t kPendingCompactThreshold = 8192;
 struct CaptureState {
   ChunkCallback callback;
   std::mutex mutex;
-    std::vector<float> pending;
-  std::size_t head = 0;
+  std::vector<float> pending;
+  std::size_t head = 0;  // consumed samples at front — avoid erase in hot path
   SCStream *stream = nil;
 };
 
@@ -35,16 +35,18 @@ void flushChunks(CaptureState *state) {
   const std::size_t chunkLen = static_cast<std::size_t>(
       pocket_audio::kChunkSamplesPerChannel * pocket_audio::kChannelCount);
 
+  // Emit fixed 8192-byte wire chunks as soon as we have enough floats queued.
   while (state->pending.size() - state->head >= chunkLen) {
     AudioChunk chunk;
     std::memcpy(chunk.data(), state->pending.data() + state->head,
-                chunkLen * sizeof(float));
+                chunkLen * sizeof(float));  // interleaved L,R → AudioChunk
     state->head += chunkLen;
     if (state->callback)
       state->callback(chunk);
   }
 
-    if (state->head >= kPendingCompactThreshold) {
+  // Compact occasionally: slide unplayed samples to index 0 (not every callback).
+  if (state->head >= kPendingCompactThreshold) {
     const std::size_t left = state->pending.size() - state->head;
     if (left > 0) {
       std::memmove(state->pending.data(), state->pending.data() + state->head,
@@ -85,8 +87,8 @@ void appendSampleBuffer(CaptureState *state, CMSampleBufferRef sample) {
   const bool nonInterleaved =
       (asbd->mFormatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
 
+  // SCK may send planar (separate L/R buffers) — we need interleaved for the wire.
   if (nonInterleaved && list->mNumberBuffers >= 1) {
-    // Planar: weave [L,R] into pending.
     const auto *L = static_cast<const float *>(list->mBuffers[0].mData);
     const auto *R = (list->mNumberBuffers > 1)
                         ? static_cast<const float *>(list->mBuffers[1].mData)
@@ -101,7 +103,6 @@ void appendSampleBuffer(CaptureState *state, CMSampleBufferRef sample) {
       dst[i * 2 + 1] = R[i];
     }
   } else if (list->mNumberBuffers >= 1) {
-    // Interleaved.
     const auto *s = static_cast<const float *>(list->mBuffers[0].mData);
     const std::size_t frames =
         list->mBuffers[0].mDataByteSize /
@@ -112,7 +113,7 @@ void appendSampleBuffer(CaptureState *state, CMSampleBufferRef sample) {
     float *dst = state->pending.data() + old;
 
     if (channels == 2) {
-            std::memcpy(dst, s, frames * 2 * sizeof(float));
+      std::memcpy(dst, s, frames * 2 * sizeof(float));  // already L,R interleaved
     } else if (channels == 1) {
       for (std::size_t i = 0; i < frames; ++i) {
         dst[i * 2] = s[i];
@@ -212,8 +213,7 @@ bool MacSystemCapture::start(ChunkCallback on_chunk) {
 
                                    SCStreamConfiguration *cfg =
                                        [[SCStreamConfiguration alloc] init];
-                                   // Tiny screen stream — required for SCK to
-                                   // deliver audio at all.
+                                   // SCK only outputs audio if a video stream exists too.
                                    cfg.width = 2;
                                    cfg.height = 2;
                                    cfg.minimumFrameInterval = CMTimeMake(1, 30);

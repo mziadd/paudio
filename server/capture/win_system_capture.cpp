@@ -80,6 +80,7 @@ void WinSystemCapture::captureThread() {
     goto cleanup;
   }
 
+  // LOOPBACK = capture what is playing on the default speakers (not the mic).
   hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
                           10000000, 0, mixFormat, nullptr);
   if (FAILED(hr)) {
@@ -133,6 +134,7 @@ void WinSystemCapture::captureThread() {
         const bool silent = (flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0;
         if (data && frames > 0 && !silent && srcIsFloat) {
           const auto *src = reinterpret_cast<const float *>(data);
+          // WASAPI mix may be >2 ch — we only take first two (stereo wire format).
           for (UINT32 i = 0; i < frames; ++i) {
             pending.push_back(src[i * srcChannels]);
             pending.push_back(srcChannels > 1 ? src[i * srcChannels + 1]
@@ -146,7 +148,7 @@ void WinSystemCapture::captureThread() {
         while (static_cast<int>(pending.size()) >= chunkLen) {
           AudioChunk chunk;
           std::copy(pending.begin(), pending.begin() + chunkLen, chunk.data());
-          pending.erase(pending.begin(), pending.begin() + chunkLen);
+          pending.erase(pending.begin(), pending.begin() + chunkLen);  // O(n); ok for Win path
           if (on_chunk_)
             on_chunk_(chunk);
         }

@@ -1,0 +1,109 @@
+# Build ready-to-use zips and publish a GitHub Release when you push a tag like v1.0.0
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure and build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Package
+        run: |
+          PKG=PocketAudio-macos-arm64
+          mkdir -p "dist/$PKG"
+          cp build/pocket-audio-server "dist/$PKG/"
+          chmod +x "dist/$PKG/pocket-audio-server"
+          cp -r web "dist/$PKG/"
+          cp README.md "dist/$PKG/"
+          cat > "dist/$PKG/START.txt" << 'EOF'
+          PocketAudio — macOS (Apple Silicon)
+
+          1. Allow Screen Recording for Terminal (System Settings → Privacy).
+          2. Terminal 1 (this folder):
+               ./pocket-audio-server
+          3. Terminal 2:
+               cd web && python3 -m http.server 8080 --bind 0.0.0.0
+          4. Phone: http://YOUR_MAC_IP:8080/ → Listen
+
+          WebSocket: ws://YOUR_MAC_IP:9000
+          EOF
+          cd dist && zip -r "${PKG}.zip" "$PKG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: dist/PocketAudio-macos-arm64.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure and build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $pkg = "PocketAudio-windows-x64"
+          New-Item -ItemType Directory -Force -Path "dist\$pkg" | Out-Null
+          $exe = "build\Release\pocket-audio-server.exe"
+          if (-not (Test-Path $exe)) { $exe = "build\pocket-audio-server.exe" }
+          Copy-Item $exe "dist\$pkg\"
+          Copy-Item -Recurse web "dist\$pkg\web"
+          Copy-Item README.md "dist\$pkg\"
+          @"
+          PocketAudio — Windows
+
+          1. Terminal 1 (this folder):
+               .\pocket-audio-server.exe
+          2. Terminal 2:
+               cd web
+               python -m http.server 8080 --bind 0.0.0.0
+          3. Phone: http://YOUR_PC_IP:8080/ → Listen
+
+          WebSocket: ws://YOUR_PC_IP:9000
+          Allow ports 9000 and 8080 in Windows Firewall if needed.
+          "@ | Set-Content -Encoding UTF8 "dist\$pkg\START.txt"
+          Compress-Archive -Path "dist\$pkg" -DestinationPath "dist\$pkg.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: dist/PocketAudio-windows-x64.zip
+
+  publish:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/macos-arm64/PocketAudio-macos-arm64.zip
+            artifacts/windows-x64/PocketAudio-windows-x64.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

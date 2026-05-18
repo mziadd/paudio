@@ -1,5 +1,4 @@
 import { kSampleRateHz, kChunkBytes } from './format.js';
-import { WS_URL, LAN_WS_PORT } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const playBtn = $('play');
@@ -38,21 +37,7 @@ const host = () => {
   return !h || h === '::1' ? '127.0.0.1' : h;
 };
 
-// Public deploy: set WS_URL in config.js or ?ws=wss://your-tunnel.example.com
-function resolveWsUrl() {
-  const q = new URLSearchParams(location.search).get('ws');
-  if (q) return q.trim();
-  if (WS_URL) return WS_URL.trim();
-  return `ws://${host()}:${LAN_WS_PORT}`;
-}
-
-function wsUrl() {
-  const url = resolveWsUrl();
-  if (location.protocol === 'https:' && url.startsWith('ws://')) {
-    console.warn('PocketAudio: HTTPS page needs wss:// — set WS_URL or ?ws=wss://...');
-  }
-  return url;
-}
+const wsUrl = () => `ws://${host()}:9000`;
 
 function setStatus(kind, text) {
   if (statusEl) statusEl.textContent = text;
@@ -314,11 +299,8 @@ async function startListening() {
     closeSocket();
     resetAudio();
     const m = String(err?.message || err);
-    const remote = WS_URL || new URLSearchParams(location.search).get('ws');
     setStatus('error', m.includes('ws')
-      ? (remote
-          ? "Can't connect — is the server and tunnel running?"
-          : "Can't connect — is pocket-audio-server running?")
+      ? "Can't connect — is pocket-audio-server running?"
       : 'Audio failed — tap Listen again');
     refreshUI();
   }

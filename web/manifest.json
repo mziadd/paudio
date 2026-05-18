@@ -1,0 +1,12 @@
+{
+  "name": "PocketAudio",
+  "short_name": "PocketAudio",
+  "description": "Listen to your computer's audio in the browser",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e0f12",
+  "theme_color": "#0e0f12",
+  "orientation": "any",
+  "categories": ["music", "entertainment"],
+  "prefer_related_applications": false
+}

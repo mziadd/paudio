@@ -65,7 +65,8 @@ void WINAPI serviceCtrlHandler(DWORD control) {
   }
 }
 
-void WINAPI serviceMain(DWORD, LPWSTR *) {
+// ANSI dispatcher (StartServiceCtrlDispatcherA) requires LPSTR*, not LPWSTR*.
+void WINAPI serviceMain(DWORD, LPSTR *) {
   g_statusHandle = RegisterServiceCtrlHandlerA(kServiceName, serviceCtrlHandler);
   if (!g_statusHandle)
     return;

@@ -69,19 +69,24 @@ jobs:
           if (-not (Test-Path $exe)) { $exe = "build\pocket-audio-server.exe" }
           Copy-Item $exe "dist\$pkg\"
           Copy-Item -Recurse web "dist\$pkg\web"
+          Copy-Item -Recurse scripts "dist\$pkg\scripts"
           Copy-Item README.md "dist\$pkg\"
           @"
           PocketAudio — Windows
 
-          1. Terminal 1 (this folder):
-               .\pocket-audio-server.exe
-          2. Terminal 2:
-               cd web
-               python -m http.server 8080 --bind 0.0.0.0
+          Quick run:
+          1. Terminal 1: .\pocket-audio-server.exe
+          2. Terminal 2: cd web && python -m http.server 8080 --bind 0.0.0.0
           3. Phone: http://YOUR_PC_IP:8080/ → Listen
 
+          Auto-start at sign-in (recommended — speaker capture works):
+            cd scripts
+            .\install-logon-task.ps1 -StartNow -AddFirewallRule
+            .\status-logon-task.ps1
+
+          Do NOT use --install-service for audio (Session 0 = no sound).
+
           WebSocket: ws://YOUR_PC_IP:9000
-          Allow ports 9000 and 8080 in Windows Firewall if needed.
           "@ | Set-Content -Encoding UTF8 "dist\$pkg\START.txt"
           Compress-Archive -Path "dist\$pkg" -DestinationPath "dist\$pkg.zip" -Force
 

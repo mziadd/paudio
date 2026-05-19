@@ -119,6 +119,49 @@ npx --yes serve -l tcp://0.0.0.0:8080
 - If the phone cannot connect, allow **port 9000** (and **8080** for the web page) in **Windows Defender Firewall** for `pocket-audio-server.exe` or for private networks.
 - For best quality, set Windows sound output to **48000 Hz** (Settings → System → Sound → your output device → Properties → Advanced).
 
+### Auto-start on Windows (recommended)
+
+Use the **logon task** — runs in **your user session** so WASAPI speaker capture works.  
+Do **not** use the Windows service for audio (Session 0 = silence).
+
+**Install** (PowerShell, from repo `scripts` folder):
+
+```powershell
+cd scripts
+.\install-logon-task.ps1 -StartNow -AddFirewallRule
+```
+
+If the `.exe` is not auto-detected:
+
+```powershell
+.\install-logon-task.ps1 -ExePath "C:\full\path\build\Release\pocket-audio-server.exe" -StartNow -AddFirewallRule
+```
+
+| Flag | Purpose |
+|------|---------|
+| `-StartNow` | Start the server immediately after install |
+| `-AddFirewallRule` | Allow inbound TCP **9000** (Private/Domain networks) |
+
+**Check status:**
+
+```powershell
+.\status-logon-task.ps1
+```
+
+Should show `Port 9000: LISTENING` and `Last result: 0`.
+
+**Log file:** `%LOCALAPPDATA%\PocketAudio\server.log`
+
+**Remove:**
+
+```powershell
+.\uninstall-logon-task.ps1
+```
+
+The task runs at every **sign-in**, restarts up to 3 times if it crashes, and keeps running in the background (no console window).
+
+**Windows service** (`--install-service`) is only for non-audio use — it cannot capture desktop speakers reliably.
+
 ## Layout
 
 ```

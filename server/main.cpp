@@ -1,76 +1,43 @@
-#include <atomic>
-#include <chrono>
-#include <csignal>
+#include <cstring>
 #include <iostream>
-#include <thread>
 
 #if defined(_WIN32)
 #include <ixwebsocket/IXNetSystem.h>
+#include "platform/win_service.hpp"
 #endif
 
-#include "capture/system_capture.hpp"
-#include "network/socket_transport.hpp"
+#include "server_loop.hpp"
 
-namespace {
-
-std::atomic<bool> g_run{true};
-std::atomic<int> g_chunksSent{0};
-
-} // namespace
-
-using pocket_audio::AudioChunk;
-using pocket_audio::capture::SystemCapture;
-using pocket_audio::network::closeSocket;
-using pocket_audio::network::createSocket;
-using pocket_audio::network::kInvalidSocket;
-using pocket_audio::network::sendAudioData;
-
-int main() {
+int main(int argc, char **argv) {
 #if defined(_WIN32)
   ix::initNetSystem();
-#endif
-  std::signal(SIGINT, [](int) { g_run = false; });
 
-  auto capture = SystemCapture::create();
-  if (!capture) {
-    std::cerr << "capture not supported on this platform\n";
-    return 1;
-  }
-
-  const auto socket = createSocket();
-  if (socket == kInvalidSocket) {
-    std::cerr << "failed to start WebSocket server\n";
-    return 1;
-  }
-
-  // Capture callback runs on the capture thread — keep work cheap (send + counter).
-  if (!capture->start([socket](const AudioChunk &chunk) {
-        if (sendAudioData(socket, chunk))
-          ++g_chunksSent;
-      })) {
-    std::cerr << "capture failed: " << capture->lastError() << "\n";
-    closeSocket(socket);
-    return 1;
-  }
-
-  std::cout
-      << "WebSocket on port 9000 — open http://YOUR_IP:8080 and tap Listen\n";
-
-  auto last_report = std::chrono::steady_clock::now();
-  while (g_run && capture->isRunning()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    const auto now = std::chrono::steady_clock::now();
-    if (now - last_report >= std::chrono::seconds(3)) {
-      std::cout << "  to browser: " << (g_chunksSent.exchange(0) / 3)
-                << " chunks/s\n";
-      last_report = now;
+  if (argc >= 2) {
+    const char *cmd = argv[1];
+    if (std::strcmp(cmd, "--service") == 0)
+      return pocket_audio::platform::runServiceDispatcher();
+    if (std::strcmp(cmd, "--install-service") == 0)
+      return pocket_audio::platform::installService();
+    if (std::strcmp(cmd, "--uninstall-service") == 0)
+      return pocket_audio::platform::uninstallService();
+    if (std::strcmp(cmd, "--help") == 0 || std::strcmp(cmd, "-h") == 0) {
+      std::cout
+          << "pocket-audio-server.exe\n"
+          << "  (no args)            Run in console\n"
+          << "  --install-service    Install Windows service (admin)\n"
+          << "  --uninstall-service  Remove Windows service (admin)\n"
+          << "  --service            Run as service (SCM only)\n";
+      ix::uninitNetSystem();
+      return 0;
     }
   }
 
-  capture->stop();
-  closeSocket(socket);
-#if defined(_WIN32)
+  const int code = pocket_audio::runServer();
   ix::uninitNetSystem();
+  return code;
+#else
+  (void)argc;
+  (void)argv;
+  return pocket_audio::runServer();
 #endif
-  return 0;
 }

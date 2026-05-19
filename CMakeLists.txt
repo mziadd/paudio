@@ -35,15 +35,18 @@ elseif(WIN32)
         server/capture/win_system_capture.cpp
         server/capture/system_capture.cpp
     )
-    set(POCKET_AUDIO_LIBS ole32 uuid winmm propsys)
+    set(POCKET_AUDIO_PLATFORM server/platform/win_service.cpp)
+    set(POCKET_AUDIO_LIBS ole32 uuid winmm propsys advapi32)
 else()
     message(FATAL_ERROR "PocketAudio requires macOS or Windows")
 endif()
 
 add_executable(pocket-audio-server
     server/main.cpp
+    server/server_loop.cpp
     ${POCKET_AUDIO_CAPTURE}
     ${POCKET_AUDIO_NETWORK}
+    $<$<BOOL:${WIN32}>:${POCKET_AUDIO_PLATFORM}>
 )
 
 target_include_directories(pocket-audio-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/server)
